@@ -5,11 +5,9 @@
 This is a version of the V2 CorDapp template that has been adapted for use on networks with limited
 connectivity to the outside world.
 
-## Pre-requisites:
-
-See https://docs.corda.net/getting-set-up.html.
-
 ## Usage
+
+This CorDapp template works identically to the online version, except that the dependencies must be gathered before use.
 
 ### Gathering the dependencies (REQUIRED)
 
@@ -20,7 +18,3 @@ Once online, run the following command from the root of the project:
     ./gradlew gatherDependencies -Pdependencies.gather=true
     
 This will gather all the dependencies required to run the template offline into the `lib/depdencies/` folder.
-
-### Building the CorDapp
-
-See https://github.com/corda/cordapp-template-kotlin#building-the-cordapp-template.
