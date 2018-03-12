@@ -21,6 +21,6 @@ Once online, run the following command from the root of the project:
     
 This will gather all the dependencies required to run the template offline into the `lib/depdencies/` folder.
 
-### Usage
+### Building the CorDapp
 
 See https://github.com/corda/cordapp-template-kotlin#building-the-cordapp-template.
