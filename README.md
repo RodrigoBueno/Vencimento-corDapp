@@ -17,4 +17,4 @@ Once online, run the following command from the root of the project:
  
     ./gradlew gatherDependencies -Pdependencies.gather=true
     
-This will gather all the dependencies required to run the template offline into the `lib/depdencies/` folder.
+This will gather all the dependencies required to run the template offline into the `lib/dependencies/` folder.
