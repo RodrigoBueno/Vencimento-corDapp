@@ -7,66 +7,57 @@ import com.vencimento.state.VencimentoState
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
-import net.corda.core.identity.Party
+import net.corda.core.node.services.queryBy
+import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalUnit
+import java.util.*
 
-object EmitirVencimentoFlow {
+object AceitarVencimentoFlow {
 
     @InitiatingFlow
     @StartableByRPC
-    class Initiator(
-            val para: Party,
-            val valor: Int,
-            val dataVencimento: Instant): FlowLogic<SignedTransaction>() {
+    class Initiator(val vencimentoId: UUID): FlowLogic<SignedTransaction>() {
 
         @Suspendable
         override fun call(): SignedTransaction {
-            //Selecionar o notary
-            val notary = serviceHub.networkMapCache.notaryIdentities.first()
+            val input = serviceHub.vaultService
+                    .queryBy<VencimentoState>(
+                            QueryCriteria.LinearStateQueryCriteria(
+                                    uuid = listOf(vencimentoId))).states.single()
+            //selecionar notary
+            val notary = input.state.notary
 
-            //Construir os states
+            requireThat {
+                "Apenas o Para pode aceitar Vencimentos." using (
+                        input.state.data.para == ourIdentity )
+            }
 
-            val output = VencimentoState(
-                    ourIdentity,
-                    para,
-                    valor,
-                    dataVencimento,
-                    StatusVencimento.Emitido
-            )
-
-            //Construir os comandos
-
-            val comando = Command(VencimentoContract.Commands.Emitir(),
-                    listOf(ourIdentity, para).map { it.owningKey })
-
-            //Construir a transação
-
+            //construir outputs
+            val output = input.state.data.copy(statusVencimento = StatusVencimento.APagar)
+            //construir comando
+            val comando = Command(VencimentoContract.Commands.Aceitar(),
+                    output.participants.map { it.owningKey })
+            //construir transacao
             val txBuilder = TransactionBuilder(notary)
                     .addCommand(comando)
                     .addOutputState(output, VencimentoContract::class.java.canonicalName)
-
-            // Verificar a transação
+                    .addInputState(input)
+            //verificar transacao
 
             txBuilder.verify(serviceHub)
 
-            //Coletar assinaturas
+            //assinar transacao
 
             val txAssinadaPorMim = serviceHub.signInitialTransaction(txBuilder)
-
-            val sessao = initiateFlow(para)
-
+            //coletar assinaturas
+            val sessao = initiateFlow(output.de)
             val txTotalmenteAssinada = subFlow(
                     CollectSignaturesFlow(txAssinadaPorMim, listOf(sessao)))
-
-            //Notorizar e gravar na base
-
             return subFlow(FinalityFlow(txTotalmenteAssinada))
         }
-
     }
 
     @InitiatedBy(Initiator::class)
@@ -81,8 +72,15 @@ object EmitirVencimentoFlow {
                         "O vencimento não pode estar vencido." using (
                                 stx.tx.outputsOfType<VencimentoState>().all {
                                     it.dataVencimento.isAfter(Instant.now().truncatedTo(ChronoUnit.DAYS)) ||
-                                    it.dataVencimento.truncatedTo(ChronoUnit.DAYS) == Instant.now().truncatedTo(ChronoUnit.DAYS)
+                                            it.dataVencimento.truncatedTo(ChronoUnit.DAYS) == Instant.now().truncatedTo(ChronoUnit.DAYS)
                                 } )
+                        val stateRef = stx.inputs.single()
+                        val input = serviceHub.vaultService.queryBy<VencimentoState>(
+                                QueryCriteria.VaultQueryCriteria(
+                                        stateRefs = listOf(stateRef)))
+                                .states.single().state.data
+                        "Apenas o Para pode aceitar Vencimentos." using (
+                                input.para == otherSideSession.counterparty)
                     }
 
                 }
@@ -93,4 +91,5 @@ object EmitirVencimentoFlow {
         }
 
     }
+
 }
